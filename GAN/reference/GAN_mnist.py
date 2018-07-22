@@ -16,6 +16,8 @@ class GAN():
 
         # Build and compile the discriminator
         self.discriminator = self.build_discriminator()
+        # For the combined model we will only train the generator
+        self.discriminator.trainable = False
         self.discriminator.compile(loss='binary_crossentropy', 
             optimizer=optimizer,
             metrics=['accuracy'])
@@ -27,9 +29,6 @@ class GAN():
         # The generator takes noise as input and generated imgs
         z = Input(shape=(100,))
         img = self.generator(z)
-
-        # For the combined model we will only train the generator
-        self.discriminator.trainable = False
 
         # The valid takes generated images as input and determines validity
         valid = self.discriminator(img)
