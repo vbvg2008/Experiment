@@ -1,158 +1,127 @@
-from tensorflow.keras.layers import Input, LeakyReLU, BatchNormalization, Dense, Reshape, Flatten
-from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.datasets import mnist
 import numpy as np
 import matplotlib.pyplot as plt
 
-class GAN():
-    def __init__(self):
-        self.img_rows = 28 
-        self.img_cols = 28
-        self.channels = 1
-        self.img_shape = (self.img_rows, self.img_cols, self.channels)
+from tensorflow.keras.layers import Input
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import LeakyReLU
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.optimizers import Adam
 
-        optimizer = Adam(0.0002, 0.5)
+# The results are a little better when the dimensionality of the random vector is only 10.
+# The dimensionality has been left at 100 for consistency with other GAN implementations.
+randomDim = 100
 
-        # Build and compile the discriminator
-        self.discriminator = self.build_discriminator()
-        # For the combined model we will only train the generator
-        self.discriminator.trainable = False
-        self.discriminator.compile(loss='binary_crossentropy', 
-            optimizer=optimizer,
-            metrics=['accuracy'])
+# Load MNIST data
+(X_train, y_train), (X_test, y_test) = mnist.load_data('C:\\Users\\jenno\\Desktop\\data\\mnist.npz')
+X_train = (X_train.astype(np.float32) - 127.5)/127.5
+X_train = X_train.reshape(60000, 784)
 
-        # Build and compile the generator
-        self.generator = self.build_generator()
-        self.generator.compile(loss='binary_crossentropy', optimizer=optimizer)
+# Optimizer
+adam = Adam(lr=0.0001)
 
-        # The generator takes noise as input and generated imgs
-        z = Input(shape=(100,))
-        img = self.generator(z)
+generator = Sequential()
+generator.add(Dense(256, input_dim=randomDim))
+generator.add(LeakyReLU(0.2))
+generator.add(Dense(512))
+generator.add(LeakyReLU(0.2))
+generator.add(Dense(1024))
+generator.add(LeakyReLU(0.2))
+generator.add(Dense(784, activation='tanh'))
+generator.compile(loss='binary_crossentropy', optimizer=adam)
 
-        # The valid takes generated images as input and determines validity
-        valid = self.discriminator(img)
+discriminator = Sequential()
+discriminator.add(Dense(1024, input_dim=784))
+discriminator.add(LeakyReLU(0.2))
+discriminator.add(Dropout(0.3))
+discriminator.add(Dense(512))
+discriminator.add(LeakyReLU(0.2))
+discriminator.add(Dropout(0.3))
+discriminator.add(Dense(256))
+discriminator.add(LeakyReLU(0.2))
+discriminator.add(Dropout(0.3))
+discriminator.add(Dense(1, activation='sigmoid'))
+discriminator.compile(loss='binary_crossentropy', optimizer=adam)
 
-        # The combined model  (stacked generator and discriminator) takes
-        # noise as input => generates images => determines validity 
-        self.combined = Model(z, valid)
-        self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
+# Combined network
+discriminator.trainable = False
+ganInput = Input(shape=(randomDim,))
+x = generator(ganInput)
+ganOutput = discriminator(x)
+gan = Model(inputs=ganInput, outputs=ganOutput)
+gan.compile(loss='binary_crossentropy', optimizer=adam)
 
-    def build_generator(self):
+dLosses = []
+gLosses = []
 
-        noise_shape = (100,)
-        
-        model = Sequential()
+# Plot the loss from each batch
+def plotLoss(epoch):
+    plt.figure(figsize=(10, 8))
+    plt.plot(dLosses, label='Discriminitive loss')
+    plt.plot(gLosses, label='Generative loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig('images/gan_loss_epoch_%d.png' % epoch)
 
-        model.add(Dense(256, input_shape=noise_shape))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(Dense(512))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(Dense(1024))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(Dense(np.prod(self.img_shape), activation='tanh'))
-        model.add(Reshape(self.img_shape))
+# Create a wall of generated MNIST images
+def plotGeneratedImages(epoch, examples=100, dim=(10, 10), figsize=(10, 10)):
+    noise = np.random.normal(0, 1, size=[examples, randomDim])
+    generatedImages = generator.predict(noise)
+    generatedImages = generatedImages.reshape(examples, 28, 28)
 
-        model.summary()
+    plt.figure(figsize=figsize)
+    for i in range(generatedImages.shape[0]):
+        plt.subplot(dim[0], dim[1], i+1)
+        plt.imshow(generatedImages[i], interpolation='nearest', cmap='gray_r')
+        plt.axis('off')
+    plt.tight_layout()
+    plt.savefig('images/gan_generated_image_epoch_%d.png' % epoch)
 
-        noise = Input(shape=noise_shape)
-        img = model(noise)
+# Save the generator and discriminator networks (and weights) for later use
+def saveModels(epoch):
+    generator.save('models/gan_generator_epoch_%d.h5' % epoch)
+    discriminator.save('models/gan_discriminator_epoch_%d.h5' % epoch)
 
-        return Model(noise, img)
+def train(epochs=1, batchSize=128):
+    batchCount = X_train.shape[0] // batchSize
+    for e in range(epochs):
+        print('Epoch %d' % e)
+        for i in range(batchCount):
+            # Get a random set of input noise and images
+            noise = np.random.normal(0, 1, size=[batchSize, randomDim])
+            imageBatch = X_train[np.random.randint(0, X_train.shape[0], size=batchSize)]
 
-    def build_discriminator(self):
+            # Generate fake MNIST images
+            generatedImages = generator.predict(noise)
+            # print np.shape(imageBatch), np.shape(generatedImages)
+            X = np.concatenate([imageBatch, generatedImages])
 
-        img_shape = (self.img_rows, self.img_cols, self.channels)
-        
-        model = Sequential()
+            # Labels for generated and real data
+            yDis = np.zeros(2*batchSize)
+            # One-sided label smoothing
+            yDis[:batchSize] = 0.9
 
-        model.add(Flatten(input_shape=img_shape))
-        model.add(Dense(512))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dense(256))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dense(1, activation='sigmoid'))
-        model.summary()
+            # Train discriminator
+            discriminator.trainable = True
+            dloss = discriminator.train_on_batch(X, yDis)
 
-        img = Input(shape=img_shape)
-        validity = model(img)
+            # Train generator
+            noise = np.random.normal(0, 1, size=[batchSize, randomDim])
+            yGen = np.ones(batchSize)
+            discriminator.trainable = False
+            gloss = gan.train_on_batch(noise, yGen)
 
-        return Model(img, validity)
+        # Store loss of most recent batch from this epoch
+        dLosses.append(dloss)
+        gLosses.append(gloss)
 
-    def train(self, epochs, batch_size=128, save_interval=50):
+        if e % 20 == 0 and e != 0:
+            plotGeneratedImages(e)
+            saveModels(e)
 
-        # Load the dataset
-        (X_train, _), (_, _) = mnist.load_data('/home/jenno/Desktop/data/mnist/mnist.npz')
-
-        # Rescale -1 to 1
-        X_train = (X_train.astype(np.float32) - 127.5) / 127.5
-        X_train = np.expand_dims(X_train, axis=3)
-
-        half_batch = int(batch_size / 2)
-
-        for epoch in range(epochs):
-
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
-
-            # Select a random half batch of images
-            idx = np.random.randint(0, X_train.shape[0], half_batch)
-            imgs = X_train[idx]
-
-            noise = np.random.normal(0, 1, (half_batch, 100))
-
-            # Generate a half batch of new images
-            gen_imgs = self.generator.predict(noise)
-
-            # Train the discriminator
-            d_loss_real = self.discriminator.train_on_batch(imgs, np.ones((half_batch, 1)))
-            d_loss_fake = self.discriminator.train_on_batch(gen_imgs, np.zeros((half_batch, 1)))
-            d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
-
-
-            # ---------------------
-            #  Train Generator
-            # ---------------------
-
-            noise = np.random.normal(0, 1, (batch_size, 100))
-
-            # The generator wants the discriminator to label the generated samples
-            # as valid (ones)
-            valid_y = np.array([1] * batch_size)
-
-            # Train the generator
-            g_loss = self.combined.train_on_batch(noise, valid_y)
-
-            # Plot the progress
-            print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
-
-            # If at save interval => save generated image samples
-            if epoch % save_interval == 0:
-                self.save_imgs(epoch)
-
-    def save_imgs(self, epoch):
-        r, c = 5, 5
-        noise = np.random.normal(0, 1, (r * c, 100))
-        gen_imgs = self.generator.predict(noise)
-
-        # Rescale images 0 - 1
-        gen_imgs = 0.5 * gen_imgs + 0.5
-
-        fig, axs = plt.subplots(r, c)
-        cnt = 0
-        for i in range(r):
-            for j in range(c):
-                axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
-                axs[i,j].axis('off')
-                cnt += 1
-        fig.savefig("/generated_images/mnist_%d.png" % epoch)
-        plt.close()
-
+    # Plot losses from every epoch
+    plotLoss(e)
 
 if __name__ == '__main__':
-    gan = GAN()
-    gan.train(epochs=30000, batch_size=32, save_interval=200)
+    train(1, 128)
