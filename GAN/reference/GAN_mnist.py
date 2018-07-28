@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+plt.switch_backend('agg')
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Dense, Dropout
@@ -13,7 +13,7 @@ from tensorflow.keras.optimizers import Adam
 randomDim = 100
 
 # Load MNIST data
-(X_train, y_train), (X_test, y_test) = mnist.load_data('C:\\Users\\jenno\\Desktop\\data\\mnist.npz')
+(X_train, y_train), (X_test, y_test) = mnist.load_data('/home/jenno/Desktop/data/mnist/mnist.npz')
 X_train = (X_train.astype(np.float32) - 127.5)/127.5
 X_train = X_train.reshape(60000, 784)
 
@@ -122,6 +122,7 @@ def train(epochs=1, batchSize=128):
 
     # Plot losses from every epoch
     plotLoss(e)
+    print('training finished')
 
 if __name__ == '__main__':
-    train(1, 128)
+    train(100, 128)
