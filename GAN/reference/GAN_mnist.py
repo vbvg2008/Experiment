@@ -42,7 +42,7 @@ discriminator.add(LeakyReLU(0.2))
 discriminator.add(Dropout(0.3))
 discriminator.add(Dense(1, activation='sigmoid'))
 discriminator.compile(loss='binary_crossentropy', optimizer=adam)
-
+discriminator.trainable = False
 # Combined network
 ganInput = Input(shape=(randomDim,))
 x = generator(ganInput)
@@ -102,6 +102,7 @@ def train(epochs=1, batchSize=128):
             yDis[:batchSize] = 0.9
 
             # Train discriminator
+            discriminator.trainable = True
             dloss = discriminator.train_on_batch(X, yDis)
 
             # Train generator
@@ -114,7 +115,7 @@ def train(epochs=1, batchSize=128):
         dLosses.append(dloss)
         gLosses.append(gloss)
 
-        if e % 20 == 0 and e != 0:
+        if e % 50 == 0 and e != 0:
             plotGeneratedImages(e)
             saveModels(e)
 
@@ -123,4 +124,4 @@ def train(epochs=1, batchSize=128):
     print('training finished')
 
 if __name__ == '__main__':
-    train(100, 128)
+    train(500, 128)
