@@ -44,7 +44,6 @@ discriminator.add(Dense(1, activation='sigmoid'))
 discriminator.compile(loss='binary_crossentropy', optimizer=adam)
 
 # Combined network
-discriminator.trainable = False
 ganInput = Input(shape=(randomDim,))
 x = generator(ganInput)
 ganOutput = discriminator(x)
@@ -103,7 +102,6 @@ def train(epochs=1, batchSize=128):
             yDis[:batchSize] = 0.9
 
             # Train discriminator
-            discriminator.trainable = True
             dloss = discriminator.train_on_batch(X, yDis)
 
             # Train generator
