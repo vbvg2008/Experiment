@@ -86,6 +86,8 @@ def train(epochs=1, batchSize=128):
     batchCount = X_train.shape[0] // batchSize
     for e in range(epochs):
         print('Epoch %d' % e)
+        epoch_dLoss = []
+        epoch_gLoss = []
         for i in range(batchCount):
             # Get a random set of input noise and images
             noise = np.random.normal(0, 1, size=[batchSize, randomDim])
@@ -110,10 +112,14 @@ def train(epochs=1, batchSize=128):
             yGen = np.ones(batchSize)
             discriminator.trainable = False
             gloss = gan.train_on_batch(noise, yGen)
-
-        # Store loss of most recent batch from this epoch
-        dLosses.append(dloss)
-        gLosses.append(gloss)
+            epoch_dLoss.append(dloss)
+            epoch_gLoss.append(gloss)
+        average_dloss = np.mean(epoch_dLoss)
+        average_gloss = np.mean(epoch_gLoss)
+        print('generator loss: ' + str(average_gloss))
+        print('discriminator loss: ' + str(average_dloss))
+        dLosses.append(average_dloss)
+        gLosses.append(average_gloss)
 
         if e % 50 == 0 and e != 0:
             plotGeneratedImages(e)
