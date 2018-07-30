@@ -61,7 +61,7 @@ def plotLoss(epoch):
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig('images/gan_loss_epoch_%d.png' % epoch)
+    plt.savefig('reference/images/gan_loss_epoch_%d.png' % epoch)
 
 # Create a wall of generated MNIST images
 def plotGeneratedImages(epoch, examples=100, dim=(10, 10), figsize=(10, 10)):
@@ -75,12 +75,12 @@ def plotGeneratedImages(epoch, examples=100, dim=(10, 10), figsize=(10, 10)):
         plt.imshow(generatedImages[i], interpolation='nearest', cmap='gray_r')
         plt.axis('off')
     plt.tight_layout()
-    plt.savefig('images/gan_generated_image_epoch_%d.png' % epoch)
+    plt.savefig('reference/images/gan_generated_image_epoch_%d.png' % epoch)
 
 # Save the generator and discriminator networks (and weights) for later use
 def saveModels(epoch):
-    generator.save('models/gan_generator_epoch_%d.h5' % epoch)
-    discriminator.save('models/gan_discriminator_epoch_%d.h5' % epoch)
+    generator.save('reference/models/gan_generator_epoch_%d.h5' % epoch)
+    discriminator.save('reference/models/gan_discriminator_epoch_%d.h5' % epoch)
 
 def train(epochs=1, batchSize=128):
     batchCount = X_train.shape[0] // batchSize
